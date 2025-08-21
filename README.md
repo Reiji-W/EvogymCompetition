@@ -1,125 +1,40 @@
-# Otani Lab Evolutionary Robotics Competition
+# otani-lab-competition
 
-このリポジトリは、大谷研究室内で行う進化的ロボティクスコンペティションのためのコード基盤です。  
+このリポジトリは、大谷研究室内で行う進化的ロボティクスコンペティションのためのコード基盤です。
 サーバで進化計算（GA）を実行し、生成されたロボットを学生がローカルで可視化・分析する運用を想定しています。
 
----
+## ディレクトリ構成
 
-## 📂 ディレクトリ構成
+```
+server/                 # サーバサイド（進化計算実行環境）
+  ├── scripts/          # 実行・ログ取得用スクリプト
+  ├── trainer/          # アルゴリズム実装
+  ├── custom_env/       # 環境定義
+  └── saved_data/       # 結果保存
 
-```plaintext
-otani-lab-competition/
-├── README.md
-├── LICENSE
-├── .gitignore
-├── requirements.txt                 # pip 依存（gymnasium, evogym, numpy, matplotlib など）
-├── scripts/
-│   ├── run_ga.sh                    # サーバで学習を起動するスクリプト
-│   └── visualize_local.sh           # ローカルで可視化を起動
-│
-├── trainer/                         # サーバ側：進化（GA）本体
-│   ├── __init__.py
-│   ├── ren_onlyGA.py                # 構造＋制御を進化。saved_data に成果を保存
-│   └── utils/
-│       ├── __init__.py
-│       ├── mp_group.py              # 並列実行ヘルパ
-│       └── algo_utils.py            # 選択・交叉・突然変異などの共通関数
-│
-├── visualizer/                      # 学生PC側：成果の可視化ツール
-│   ├── __init__.py
-│   ├── visualize_bodies.py          # 世代の *.npz をタイル可視化
-│   ├── visualize_rollout.py         # 任意個体を環境で再生
-│   └── export_robot_video.py        # ロボットのみ動画保存
-│
-├── custom_env/                      # 競技用の独自環境
-│   ├── __init__.py                  # register() で環境を gym に登録
-│   ├── my_walker_env.py             # 環境本体
-│   └── worlds/
-│       └── my_environment.json      # デザインツールで作成した JSON
-│
-├── tools/                           # 補助スクリプト
-│   ├── __init__.py
-│   └── collect_topk.py              # 上位個体を抽出するなど
-│
-├── submissions/                     # 学生の提出物
-│   └── <student_id>/
-│       ├── README.md                # 学生自身の工夫点
-│       ├── patches/                 # 改良コード
-│       └── results/                 # 軽量成果（画像・動画）
-│
-├── saved_data/                      # 実行成果（Git管理外）
-│   └── <exp_name>/
-│       ├── metadata.txt             # 実行パラメータ
-│       ├── generation_0/
-│       │   ├── output.txt
-│       │   └── structure/<id>.npz
-│       └── generation_1/ ...
-│
-└── .github/
-    └── workflows/
-        └── ci.yml                   # （任意）lint / 単体テスト
+client/                 # クライアントサイド（可視化・環境作成）
+  ├── config/           # 接続先設定(remote.yamlなど)
+  ├── scripts/          # 転送・マウント系スクリプト
+  ├── visualizer/       # 可視化コード
+  ├── env_builder/      # 環境作成用ツール
+  └── mnt/              # サーバのsaved_dataをマウント
+
+.github/workflows/      # CI/CDワークフロー
 ```
 
----
+## 利用方法
 
-## 🚀 使い方
+### 1. サーバサイド
+- `server/scripts/run_ga.sh` を用いて進化計算を実行します。
+- `server/saved_data/` に成果物（ログ・解ファイルなど）が保存されます。
 
-### 1. 環境構築
-依存は pip でインストールします。
+### 2. クライアントサイド
+- `client/config/remote.yaml` にサーバのアドレスやパスを設定します。
+- `client/scripts/mount_saved_data.sh` を使ってサーバの結果をマウントします。
+- `client/visualizer/` のスクリプトを用いて結果を可視化します。
 
-```bash
-pip install -r requirements.txt
-pip install evogym-design-tool   # デザインツール
-```
+### 3. 環境作成
+- `client/env_builder/` に環境定義JSONを配置し、`client/scripts/send_world_json.sh` でサーバに転送します。
 
-### 2. サーバで学習
-```bash
-python trainer/ren_onlyGA.py --exp_name myexp --pop 50 --gens 100
-```
-成果は `saved_data/myexp/` 以下に保存されます。
-
-### 3. ローカルで可視化
-サーバから `saved_data/myexp/` をコピーした上で:
-
-```bash
-python visualizer/visualize_bodies.py --exp myexp --gen 10
-python visualizer/visualize_rollout.py --exp myexp --gen 10 --id 3 --steps 300
-```
-
----
-
-## 📑 提出方法
-
-- 学生は **`submissions/<student_id>/`** 以下にフォルダを作成し、
-  - 改良したアルゴリズム（patches/）
-  - 軽量成果物（results/）
-  - 簡単な README.md（工夫点）
-  をまとめて提出してください。
-
-- 大きな `saved_data/` データは Git 管理外です。必要に応じて成果の動画やグラフのみ results/ に保存してください。
-
----
-
-## ⚙️ .gitignore
-
-```gitignore
-__pycache__/
-*.pyc
-.venv/
-.env
-
-saved_data/
-*.mp4
-*.png
-
-.DS_Store
-.vscode/
-.idea/
-```
-
----
-
-## 📄 License
-
-本リポジトリは研究室内の教育目的で利用されるため、外部公開する場合は MIT License を推奨します。
-詳細は LICENSE ファイルを参照してください。
+## ライセンス
+このリポジトリは教育目的で使用されます。
