@@ -194,7 +194,7 @@ def visualize_codesign(env_name: str, saved_root: str, exp_name: str):
 
 def main():
     parser = argparse.ArgumentParser(description="EvoGym コードサイン結果の可視化 (周期的アクチュエータ制御のみ)")
-    parser.add_argument("--env-name", default="Walker-v0", help="EvoGym 環境名 (例: Walker-v0)")
+    parser.add_argument("--env-name", default="MyJsonWorld-Walker-v0", help="EvoGym 環境名 (例: Walker-v0)")
     parser.add_argument(
         "--saved-root",
         default=os.path.join("client/mnt"),
