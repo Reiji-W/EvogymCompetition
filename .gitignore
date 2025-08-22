@@ -213,3 +213,5 @@ client/mnt/*
 # dataと名のつく全ディレクトリ
 **/*data/*
 !**/*data/.gitkeep
+
+server/custom_env/**/*.json
