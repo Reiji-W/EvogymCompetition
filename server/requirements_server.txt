@@ -1,0 +1,6 @@
+cloudpickle==3.1.1
+evogym==2.0.0
+Farama-Notifications==0.0.4
+gymnasium==1.2.0
+numpy==1.26.4
+typing_extensions==4.14.1
