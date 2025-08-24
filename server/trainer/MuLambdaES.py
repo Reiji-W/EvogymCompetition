@@ -22,6 +22,8 @@ import numpy as np
 import gymnasium as gym
 from pathlib import Path
 import importlib
+import glob
+import shutil
 
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -47,6 +49,27 @@ from server.trainer.utils.algo_utils import (
 )
 from server.trainer.utils.mp_group import Group
 
+def _find_active_json_path() -> str:
+    """
+    server/custom_env/active に 1 件だけある JSON の絶対パスを返す。
+    まず server.custom_env.register の _ACTIVE_JSON を参照し、
+    見つからない場合は active ディレクトリを探索する。
+    """
+    try:
+        import server.custom_env.register as reg
+        p = getattr(reg, "_ACTIVE_JSON", None)
+        if p and os.path.isfile(p):
+            return os.path.abspath(p)
+    except Exception:
+        pass
+
+    base = os.path.abspath(os.path.join("server", "custom_env", "active"))
+    jsons = sorted(glob.glob(os.path.join(base, "*.json")))
+    if len(jsons) != 1:
+        raise RuntimeError(
+            f"active JSON は 1 件のみである必要があります（検出 {len(jsons)} 件，{base}）。"
+        )
+    return os.path.abspath(jsons[0])
 
 def _mp_bootstrap_register():
     # プロジェクトルートを sys.path へ
@@ -192,6 +215,12 @@ def run_es(
         shutil.rmtree(home_path)
     os.makedirs(home_path, exist_ok=True)
 
+    active_json_path = _find_active_json_path()
+    world_json_name = os.path.basename(active_json_path)
+    world_json_dest = os.path.join(home_path, world_json_name)
+    shutil.copy2(active_json_path, world_json_dest)
+
+
     # メタ情報
     with open(os.path.join(home_path, "metadata.txt"), "w") as f:
         f.write("ALGO: mu+lambda ES\n")
@@ -200,6 +229,7 @@ def run_es(
         f.write(f"STRUCTURE_SHAPE: {structure_shape[0]} {structure_shape[1]}\n")
         f.write(f"MAX_EVALUATIONS: {max_evaluations}\n")
         f.write(f"MAX_STEPS: {max_steps}\n")
+        f.write(f"WORLD_JSON: {world_json_name}\n")
 
     # 初期個体群
     structures: List[ESIndividual] = []
@@ -277,7 +307,7 @@ def run_es(
 # ────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="μ+λ ES for EvoGym")
-    parser.add_argument("--exp_name", type=str, default="es_exp2", help="実験名（saved_data/ 配下）")
+    parser.add_argument("--exp_name", type=str, default="es_exp3", help="実験名（saved_data/ 配下）")
     parser.add_argument("--env_name", type=str, default="MyJsonWorld-Walker-v0", help="環境 ID")
     parser.add_argument("--pop_size", type=int, default=120, help="集団サイズ (μ+λ)")
     parser.add_argument("--structure_shape", type=int, nargs=2, default=[5, 5], help="構造サイズ (W H)")
