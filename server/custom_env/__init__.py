@@ -15,5 +15,5 @@ if not _already_registered(ENV_ID):
     register(
         id=ENV_ID,
         entry_point="server.custom_env.register:_ActiveJsonWalkerEnv",  # ← ここを現在のパスに！
-        max_episode_steps=100000,
+        max_episode_steps=1000,
     )
