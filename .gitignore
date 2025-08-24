@@ -215,3 +215,4 @@ client/mnt/*
 !**/*data/.gitkeep
 
 server/custom_env/**/*.json
+client/config/remote.yaml
