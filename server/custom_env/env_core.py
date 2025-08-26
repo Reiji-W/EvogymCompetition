@@ -48,8 +48,10 @@ class _ActiveJsonWalkerEnv(EvoGymBase):
         connections: Optional[np.ndarray] = None,
         render_mode: Optional[str] = None,
         *,
+        # 初期位置
         spawn_x: int = 1,
         spawn_y: int = 18,
+        # アクチュエータのスケール
         action_low: float = 0.6,
         action_high: float = 1.6,
         # 落下系
@@ -86,8 +88,9 @@ class _ActiveJsonWalkerEnv(EvoGymBase):
 
         com1 = np.mean(pos1, axis=1)
         com2 = np.mean(pos2, axis=1)
-        reward = float(com2[0] - com1[0])
+        reward = float(com2[0] - com1[0]) # x 方向の前進量
 
+        # 落下判定: ロボの下端が連続kill_grace_steps回 kill_y 未満なら終了 & ペナルティ
         y_min = float(np.min(pos2[1]))
         self._below_counter = (self._below_counter + 1) if y_min < self._kill_y else 0
         fell = self._below_counter >= self._kill_grace_steps
