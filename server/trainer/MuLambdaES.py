@@ -216,6 +216,13 @@ def run_es(
     shutil.copy2(
         active_json, os.path.join(home_path, os.path.basename(active_json))
     )
+    # active/ ディレクトリを丸ごと同梱（JSON や他アセットを含む）
+    active_dir_src = os.path.dirname(active_json)  # server/custom_env/active
+    active_dir_dst = os.path.join(home_path, "active")
+    if os.path.isdir(active_dir_dst):
+        shutil.rmtree(active_dir_dst)
+    shutil.copytree(active_dir_src, active_dir_dst)
+
 
     # env_core.py, register.py のスナップショットを保存
     snap_dir = os.path.join(home_path, "code_snapshot", "custom_env")
