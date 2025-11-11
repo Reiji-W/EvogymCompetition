@@ -23,6 +23,7 @@ importlib.invalidate_caches()
 # ── Third-party
 import numpy as np
 import gymnasium as gym
+import evogym.envs  # noqa: F401  # ensure default EvoGym envs are registered
 
 # ── Local imports（ここより後で OK）
 from server.custom_env import ensure_registered
@@ -38,11 +39,21 @@ warnings.filterwarnings("ignore", category=UserWarning)
 # 先頭の import 群の下あたりに追加
 _CUSTOM_ENTRY_SUBSTRINGS = ("custom_env.env_core", "server.custom_env.env_core")
 
-def _resolve_env(env_name: Optional[str], max_episode_steps: Optional[int]) -> Tuple[str, bool]:
+def _resolve_env(
+    env_name: Optional[str],
+    max_episode_steps: Optional[int],
+    *,
+    force_custom: bool = False,
+) -> Tuple[str, bool]:
     """env_id を決定し、(env_id, is_custom) を返す。
     - 既存のベース環境なら ensure_registered は呼ばない（上書き防止）
     - 見つからない/カスタムなら ensure_registered で登録
+    - force_custom=True のときは custom_env の登録フローを強制
     """
+    if force_custom:
+        eid = ensure_registered(env_name, max_episode_steps=max_episode_steps)
+        return eid, True
+
     if not env_name:
         # 未指定ならカスタムを採番・登録
         return ensure_registered(None, max_episode_steps=max_episode_steps), True
@@ -204,35 +215,35 @@ def run_es(
     num_cores: int,
     max_steps: int,
     max_episode_steps: Optional[int] = None,
+    use_custom_env: bool = True,
 ) -> None:
-    env_id, _ = _resolve_env(env_name, max_episode_steps)
+    env_id, is_custom = _resolve_env(env_name, max_episode_steps, force_custom=use_custom_env)
 
     home_path = os.path.join("server/saved_data", exp_name)
     if os.path.exists(home_path):
         shutil.rmtree(home_path)
     os.makedirs(home_path, exist_ok=True)
 
-    active_json = _find_active_json_path()
-    shutil.copy2(
-        active_json, os.path.join(home_path, os.path.basename(active_json))
-    )
-    # active/ ディレクトリを丸ごと同梱（JSON や他アセットを含む）
-    active_dir_src = os.path.dirname(active_json)  # server/custom_env/active
-    active_dir_dst = os.path.join(home_path, "active")
-    if os.path.isdir(active_dir_dst):
-        shutil.rmtree(active_dir_dst)
-    shutil.copytree(active_dir_src, active_dir_dst)
+    if is_custom:
+        active_json = _find_active_json_path()
+        shutil.copy2(
+            active_json, os.path.join(home_path, os.path.basename(active_json))
+        )
+        # active/ ディレクトリを丸ごと同梱（JSON や他アセットを含む）
+        active_dir_src = os.path.dirname(active_json)  # server/custom_env/active
+        active_dir_dst = os.path.join(home_path, "active")
+        if os.path.isdir(active_dir_dst):
+            shutil.rmtree(active_dir_dst)
+        shutil.copytree(active_dir_src, active_dir_dst)
 
-
-    # env_core.py, register.py のスナップショットを保存
-    snap_dir = os.path.join(home_path, "code_snapshot", "custom_env")
-    os.makedirs(snap_dir, exist_ok=True)
-    for fname in ("env_core.py", "register.py"):
-        src = os.path.join("server", "custom_env", fname)
-        if os.path.isfile(src):
-            dst = os.path.join(snap_dir, fname)
-            shutil.copy2(src, dst)
-
+        # env_core.py, register.py のスナップショットを保存
+        snap_dir = os.path.join(home_path, "code_snapshot", "custom_env")
+        os.makedirs(snap_dir, exist_ok=True)
+        for fname in ("env_core.py", "register.py"):
+            src = os.path.join("server", "custom_env", fname)
+            if os.path.isfile(src):
+                dst = os.path.join(snap_dir, fname)
+                shutil.copy2(src, dst)
 
     with open(os.path.join(home_path, "metadata.txt"), "w") as f:
         f.write("ALGO: mu+lambda ES\n")
@@ -350,6 +361,12 @@ if __name__ == "__main__":
         default=None,
         help="環境のエピソード最大ステップ数（未指定時はデフォルトを使用）",
     )
+    parser.add_argument(
+        "--custom_env",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="custom_env を使う/使わないを切替。--no-custom-env でベース環境を直接利用。",
+    )
     args = parser.parse_args()
 
     run_es(
@@ -361,4 +378,5 @@ if __name__ == "__main__":
         num_cores=args.num_cores,
         max_steps=args.max_steps,
         max_episode_steps=args.max_episode_steps,
+        use_custom_env=args.custom_env,
     )

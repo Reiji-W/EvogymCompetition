@@ -7,6 +7,7 @@ import shutil
 from typing import Optional, Tuple
 
 import gymnasium as gym
+import evogym.envs  # noqa: F401  # ensure default EvoGym envs are registered
 
 from server.custom_env import ensure_registered
 
@@ -14,16 +15,26 @@ from server.custom_env import ensure_registered
 _CUSTOM_ENTRY_SUBSTRINGS = ("custom_env.env_core", "server.custom_env.env_core")
 
 
-def resolve_env(env_name: Optional[str], max_episode_steps: Optional[int]) -> Tuple[str, bool]:
+def resolve_env(
+    env_name: Optional[str],
+    max_episode_steps: Optional[int],
+    *,
+    force_custom: bool = False,
+) -> Tuple[str, bool]:
     """
     使う環境IDを決定して返す。
     返り値: (env_id, is_custom)
+      - force_custom=True: env_name の有無に関わらず custom_env の登録フローを使用
       - env_name が未指定: ensure_registered(None, ...) で次番号を採番・登録し、(eid, True)
       - 既存の spec がある:
           entry_point に custom_env の文字列が含まれていればカスタムとみなし ensure_registered で（必要なら）再登録
           それ以外はベース環境として (env_name, False)
       - spec が見つからない: カスタムとして ensure_registered し、(eid, True)
     """
+    if force_custom:
+        eid = ensure_registered(env_name, max_episode_steps=max_episode_steps)
+        return eid, True
+
     if not env_name:
         # 未指定 → カスタムとして自動採番・登録
         return ensure_registered(None, max_episode_steps=max_episode_steps), True
