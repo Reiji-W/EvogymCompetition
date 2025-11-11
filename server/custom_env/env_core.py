@@ -12,26 +12,47 @@ logger = logging.getLogger(__name__)
 # -- active JSON を1件だけ要求 -------------------------------------------------
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 _ACTIVE_DIR = os.path.join(_THIS_DIR, "active")
+_ACTIVE_JSON_ENVVAR = "EVOGYM_ACTIVE_JSON_OVERRIDE"
 
-if not os.path.isdir(_ACTIVE_DIR):
-    msg = (
-        f"[EvoGym] active ディレクトリが見つかりません: {_ACTIVE_DIR}\n"
-        "server/custom_env/active に使用するワールド JSON を1件だけ置いてください。"
-    )
-    print(msg, file=sys.stderr)
-    raise RuntimeError(msg)
+def _resolve_active_json() -> str:
+    """
+    active ディレクトリの JSON もしくは EVOGYM_ACTIVE_JSON_OVERRIDE で指定された JSON を返す。
+    override が与えられている場合は active ディレクトリの存在チェックをスキップする。
+    """
+    override = os.environ.get(_ACTIVE_JSON_ENVVAR)
+    if override:
+        override = os.path.abspath(override)
+        if not os.path.isfile(override):
+            msg = (
+                "[EvoGym] EVOGYM_ACTIVE_JSON_OVERRIDE で指定された JSON が見つかりません。\n"
+                f"  指定パス: {override}"
+            )
+            print(msg, file=sys.stderr)
+            raise RuntimeError(msg)
+        return override
 
-_jsons = sorted(glob.glob(os.path.join(_ACTIVE_DIR, "*.json")))
-if len(_jsons) != 1:
-    msg = (
-        "[EvoGym] active 配下の JSON は 1 件のみである必要があります。\n"
-        f"  見つかった件数: {len(_jsons)}\n"
-        "  検出リスト:\n" + "".join(f"    - {p}\n" for p in _jsons)
-    )
-    print(msg, file=sys.stderr)
-    raise RuntimeError(msg)
+    if not os.path.isdir(_ACTIVE_DIR):
+        msg = (
+            f"[EvoGym] active ディレクトリが見つかりません: {_ACTIVE_DIR}\n"
+            "server/custom_env/active に使用するワールド JSON を1件だけ置いてください。"
+        )
+        print(msg, file=sys.stderr)
+        raise RuntimeError(msg)
 
-_ACTIVE_JSON = os.path.abspath(_jsons[0])
+    jsons = sorted(glob.glob(os.path.join(_ACTIVE_DIR, "*.json")))
+    if len(jsons) != 1:
+        msg = (
+            "[EvoGym] active 配下の JSON は 1 件のみである必要があります。\n"
+            f"  見つかった件数: {len(jsons)}\n"
+            "  検出リスト:\n" + "".join(f"    - {p}\n" for p in jsons)
+        )
+        print(msg, file=sys.stderr)
+        raise RuntimeError(msg)
+
+    return os.path.abspath(jsons[0])
+
+
+_ACTIVE_JSON = _resolve_active_json()
 logger.debug(f"[EvoGym] Using active JSON: {_ACTIVE_JSON}")
 
 # -- 環境本体（落下死亡判定などのロジック） --------------------------------------

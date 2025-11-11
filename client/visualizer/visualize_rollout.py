@@ -18,6 +18,8 @@ if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 importlib.invalidate_caches()
 
+ACTIVE_JSON_ENVVAR = "EVOGYM_ACTIVE_JSON_OVERRIDE"
+
 # === custom_env の登録機構を使う（学習時と同じモジュールを利用） ===
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -28,13 +30,11 @@ def _register_custom_env():
     """custom_env をどこに置いても拾えるように動的 import（後方互換）"""
     for mod in ("custom_env", "server.custom_env", "client.custom_env"):
         try:
-            __import__(mod)
+            importlib.import_module(mod)
             return mod
         except Exception:
             continue
     return None
-
-CUSTOM_ENV_MOD = _register_custom_env()
 
 # ── metadata と JSON で環境を用意する ─────────────────────────
 def _read_metadata_env(exp_dir: str) -> Optional[str]:
@@ -85,20 +85,16 @@ def _ensure_env_from_bundle(exp_dir: str, cli_env_fallback: Optional[str]) -> st
         return env_id
 
     # --- ここから先は custom_env のときだけ実行 ---
+    bundled_json = _find_bundled_json(exp_dir)
+    os.environ[ACTIVE_JSON_ENVVAR] = bundled_json
+
     snap_root = os.path.join(exp_dir, "code_snapshot")
     if os.path.isdir(snap_root) and snap_root not in sys.path:
         sys.path.insert(0, snap_root)
         importlib.invalidate_caches()
 
     # snapshot 側の custom_env を import
-    mod_name = None
-    for mod in ("custom_env", "server.custom_env", "client.custom_env"):
-        try:
-            importlib.import_module(mod)
-            mod_name = mod
-            break
-        except Exception:
-            continue
+    mod_name = _register_custom_env()
     if mod_name is None:
         raise ImportError("custom_env パッケージが import できません。")
 
@@ -106,7 +102,6 @@ def _ensure_env_from_bundle(exp_dir: str, cli_env_fallback: Optional[str]) -> st
     reg  = importlib.import_module(f"{mod_name}.register")
 
     # 実験同梱 JSON を使用
-    bundled_json = _find_bundled_json(exp_dir)
     setattr(core, "_ACTIVE_JSON", bundled_json)
 
     ensure_registered = getattr(reg, "ensure_registered")
