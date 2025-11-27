@@ -50,6 +50,28 @@ def run_experiment(
     if is_custom:
         copy_active_assets(home_path)
 
+    # 実験メタデータを保存（ベース/カスタム共通で ENV 名を記録）
+    metadata_path = os.path.join(home_path, "metadata.txt")
+    with open(metadata_path, "w") as f:
+        f.write("ALGO: GA\n")
+        f.write(f"ENV: {env_id}\n")
+        f.write(f"POP_SIZE: {pop_size}\n")
+        f.write(f"STRUCTURE_SHAPE: {structure_shape[0]} {structure_shape[1]}\n")
+        f.write(f"MAX_EVALUATIONS: {max_evaluations}\n")
+        f.write(f"MAX_STEPS: {max_steps}\n")
+        if max_episode_steps is not None:
+            f.write(f"MAX_EPISODE_STEPS: {max_episode_steps}\n")
+        try:
+            import evogym, gymnasium, numpy as _np  # type: ignore
+
+            f.write(
+                f"VERSIONS: evogym={getattr(evogym, '__version__', 'unknown')}, "
+                f"gymnasium={getattr(gymnasium, '__version__', 'unknown')}, "
+                f"numpy={_np.__version__}\n"
+            )
+        except Exception:
+            pass
+
     mutation = get_mutation(mutation_name)
     crossover = get_crossover(crossover_name)
     selection = get_selection(selection_name)
@@ -124,7 +146,7 @@ if __name__ == "__main__":
     parser.add_argument("--env_name", type=str, default="Walker-v0")
     parser.add_argument("--pop_size", type=int, default=120)
     parser.add_argument("--structure_shape", type=int, nargs=2, default=[5, 5])
-    parser.add_argument("--max_evaluations", type=int, default=12000)
+    parser.add_argument("--max_evaluations", type=int, default=1200)
     parser.add_argument("--num_cores", type=int, default=12)
     parser.add_argument("--max_steps", type=int, default=1000)
     parser.add_argument("--max_episode_steps", type=int, default=None)
