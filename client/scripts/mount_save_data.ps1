@@ -70,7 +70,8 @@ if ([string]::IsNullOrWhiteSpace($HOST) -or
     [string]::IsNullOrWhiteSpace($USER) -or
     [string]::IsNullOrWhiteSpace($RPATH)) {
 
-    Write-Error "remote.yaml の remote: { host, user, path } を確認してください。"
+    # ← ここは {} を含むので必ずシングルクォートにする
+    Write-Error 'remote.yaml の remote: { host, user, path } を確認してください。'
     exit 1
 }
 
@@ -87,7 +88,9 @@ if (-not [string]::IsNullOrWhiteSpace($KEY) -and
 # === rsync のソース/宛先設定 ===
 # 末尾のスラッシュが「中身だけ」を同期するポイント
 $RPATH_CLEAN = $RPATH.TrimEnd('/', '\')
-$RSRC = "$USER@$HOST:$RPATH_CLEAN/server/saved_data/"
+
+# ここは -f で文字列組み立てして、$HOST: の誤解釈を避ける
+$RSRC = "{0}@{1}:{2}/server/saved_data/" -f $USER, $HOST, $RPATH_CLEAN
 
 if (-not (Test-Path $RDST)) {
     New-Item -ItemType Directory -Path $RDST | Out-Null
