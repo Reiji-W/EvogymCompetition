@@ -1,12 +1,17 @@
-# PowerShell script: sync_saved_data.ps1
+# PowerShell script: client/scripts/mount_save_data.ps1
 # remote.yaml の remote ブロックを読み取り、
-# Linux版スクリプトと同様に rsync で
-# ${USER}@${HOST}:${RPATH}/server/saved_data/ -> client/mnt/ を同期する
+# ${USER}@${HOST}:${RPATH}/server/saved_data/ -> client/mnt/ を rsync で同期する
 
 $ErrorActionPreference = "Stop"
 
-# === 設定ファイル ===
-$Config = "client/config/remote.yaml"
+# === スクリプト位置から各ディレクトリを解決 ===
+# このファイル: <repo>/client/scripts/mount_save_data.ps1
+$ScriptDir  = Split-Path -Parent $MyInvocation.MyCommand.Path       # .../client/scripts
+$ClientRoot = Split-Path -Parent $ScriptDir                         # .../client
+
+# 設定ファイル・出力ディレクトリ
+$Config = Join-Path $ClientRoot "config/remote.yaml"
+$RDST   = Join-Path $ClientRoot "mnt"
 
 if (-not (Test-Path $Config)) {
     Write-Error "Config not found: $Config"
@@ -83,7 +88,6 @@ if (-not [string]::IsNullOrWhiteSpace($KEY) -and
 # 末尾のスラッシュが「中身だけ」を同期するポイント
 $RPATH_CLEAN = $RPATH.TrimEnd('/', '\')
 $RSRC = "$USER@$HOST:$RPATH_CLEAN/server/saved_data/"
-$RDST = "client/mnt/"
 
 if (-not (Test-Path $RDST)) {
     New-Item -ItemType Directory -Path $RDST | Out-Null
