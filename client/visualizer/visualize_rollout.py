@@ -49,12 +49,15 @@ def _read_metadata_env(exp_dir: str) -> Optional[str]:
                 break
     return env_id or None
 
-def _find_bundled_json(exp_dir: str) -> str:
-    # run_es で active JSON を EXP_DIR 直下に copy2 済み
+def _find_bundled_json(exp_dir: str) -> Optional[str]:
+    # run_es で active JSON を EXP_DIR 直下に copy2 済み（カスタム環境の場合）
     jsons = [p for p in os.listdir(exp_dir) if p.lower().endswith(".json")]
+    if len(jsons) == 0:
+        # ベース環境や、JSON を同梱していない古い実験に対応するため None を返す
+        return None
     if len(jsons) != 1:
         raise RuntimeError(
-            f"実験ディレクトリ直下の JSON は 1 件のみ必要です（検出 {len(jsons)} 件；{exp_dir}）。"
+            f"実験ディレクトリ直下の JSON は 0 または 1 件のみを想定しています（検出 {len(jsons)} 件；{exp_dir}）。"
         )
     return os.path.abspath(os.path.join(exp_dir, jsons[0]))
 
@@ -62,7 +65,7 @@ def _ensure_env_from_bundle(exp_dir: str, cli_env_fallback: Optional[str]) -> st
     """
     可視化でも学習時と同じ環境を再現する:
       - metadata.txt の ENV を優先（なければ CLI の --env-name）
-      - （カスタム時のみ）実験直下に同梱された JSON を env_core の _ACTIVE_JSON に差し替え
+      - （カスタム時のみ）実験直下に同梱された JSON を env_core の _ACTIVE_JSON に差し替え（存在する場合）
       - ensure_registered(ENV) で登録
     """
     env_id = _read_metadata_env(exp_dir) or (cli_env_fallback or "MyJsonWorld-Local")
@@ -86,7 +89,8 @@ def _ensure_env_from_bundle(exp_dir: str, cli_env_fallback: Optional[str]) -> st
 
     # --- ここから先は custom_env のときだけ実行 ---
     bundled_json = _find_bundled_json(exp_dir)
-    os.environ[ACTIVE_JSON_ENVVAR] = bundled_json
+    if bundled_json is not None:
+        os.environ[ACTIVE_JSON_ENVVAR] = bundled_json
 
     snap_root = os.path.join(exp_dir, "code_snapshot")
     if os.path.isdir(snap_root) and snap_root not in sys.path:
@@ -101,14 +105,16 @@ def _ensure_env_from_bundle(exp_dir: str, cli_env_fallback: Optional[str]) -> st
     core = importlib.import_module(f"{mod_name}.env_core")
     reg  = importlib.import_module(f"{mod_name}.register")
 
-    # 実験同梱 JSON を使用
-    setattr(core, "_ACTIVE_JSON", bundled_json)
+    # 実験同梱 JSON を使用（存在する場合だけ）
+    if bundled_json is not None:
+        setattr(core, "_ACTIVE_JSON", bundled_json)
 
     ensure_registered = getattr(reg, "ensure_registered")
     # max_episode_steps は学習時に依存。指定しない（None）。
     ensure_registered(env_id, max_episode_steps=None)
 
-    print(f"[DEBUG] Bundled JSON set to: {bundled_json}")
+    if bundled_json is not None:
+        print(f"[DEBUG] Bundled JSON set to: {bundled_json}")
     print(f"[DEBUG] Registered/validated ENV: {env_id}")
     return env_id
 
