@@ -18,6 +18,7 @@ def _mp_bootstrap_register() -> None:
     if str(PROJECT_ROOT) not in sys.path:
         sys.path.insert(0, str(PROJECT_ROOT))
     importlib.invalidate_caches()
+    import evogym.envs  # noqa: F401  # ensure default EvoGym envs are registered
     import server.custom_env.register  # noqa: F401
     _BOOTSTRAPPED = True
 
@@ -41,6 +42,13 @@ def evaluate_structure(
     max_steps: int,
 ) -> float:
     _mp_bootstrap_register()
+
+    # spawn の場合に備えて、必要なら env_id を（worlds/<env_id>.json に基づいて）登録する。
+    try:
+        gym.spec(env_name)
+    except Exception:
+        from server.custom_env import ensure_registered
+        ensure_registered(env_name)
 
     # まず body/conn 付きで作成（元の意図）。引数不正のときだけフォールバック。
     try:

@@ -48,10 +48,12 @@ def _resolve_env(
     """env_id を決定し、(env_id, is_custom) を返す。
     - 既存のベース環境なら ensure_registered は呼ばない（上書き防止）
     - 見つからない/カスタムなら ensure_registered で登録
-    - force_custom=True のときは custom_env の登録フローを強制
+    - force_custom=True のときは env_name を無視して active JSON を必ず使う
     """
     if force_custom:
-        eid = ensure_registered(env_name, max_episode_steps=max_episode_steps)
+        # custom モードでは env_name を無視して active JSON を必ず使う。
+        active_json = _find_active_json_path()
+        eid = ensure_registered(None, world_json=active_json, max_episode_steps=max_episode_steps)
         return eid, True
 
     if not env_name:
@@ -77,6 +79,12 @@ def _resolve_env(
     
 # _ACTIVE_JSON を探す。JSONが複数ある場合は停止。
 def _find_active_json_path() -> str:
+    override = os.environ.get("EVOGYM_ACTIVE_JSON_OVERRIDE")
+    if override:
+        override = os.path.abspath(override)
+        if os.path.isfile(override):
+            return override
+
     try:
         import server.custom_env.env_core as core
         p = getattr(core, "_ACTIVE_JSON", None)
@@ -125,6 +133,11 @@ def evaluate_structure(
     max_steps: int,
 ) -> float:
     _mp_bootstrap_register()
+    # spawn の場合に備えて、必要なら env_id を（worlds/<env_id>.json に基づいて）登録する。
+    try:
+        gym.spec(env_name)
+    except Exception:
+        ensure_registered(env_name)
     # 既に run_es 側で解決済みの env_name が来る前提。
     # まずは body/conn 付きで試す（カスタム想定）。TypeError 等ならベース環境として再試行。
     try:
