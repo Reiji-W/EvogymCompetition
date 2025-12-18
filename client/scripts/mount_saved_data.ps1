@@ -37,27 +37,53 @@ $dst = Join-Path "client" "mnt"
 New-Item -ItemType Directory -Force -Path $dst | Out-Null
 
 # ssh/rsync options
-$sshArgs = @("-o","BatchMode=yes","-o","StrictHostKeyChecking=accept-new")
+# NOTE: Do not force BatchMode=yes; allow password prompt fallback when key auth is not available.
+$sshArgs = @(
+    # Avoid reading ~/.ssh/config (Windows backslashes in IdentityFile often break parsing)
+    "-F", "NUL",
+    "-o", "StrictHostKeyChecking=accept-new"
+)
 if ($sshKey) { $sshArgs += @("-i", $sshKey) }
 
 $remoteSaved = "$basePath/server/saved_data"
+ 
+$rsyncCmd = Get-Command "rsync.exe" -ErrorAction SilentlyContinue -All | Select-Object -First 1
 
-$rsync = Get-Command "rsync.exe" -ErrorAction SilentlyContinue
-if ($rsync) {
-    $rsrc = $remoteUser + "@" + $remoteHost + ":" + $remoteSaved + "/"
-    Write-Host "-> rsync $rsrc -> $dst"
-    & $rsync.FullName "-az" "--delete" "-e" ("ssh " + ($sshArgs -join ' ')) $rsrc $dst
-} else {
-    $scp = Get-Command "scp.exe" -ErrorAction SilentlyContinue
-    if (-not $scp) { throw "rsync or scp not found. Install OpenSSH client or rsync." }
+function Invoke-ScpSync {
+    param(
+        [Parameter(Mandatory = $true)][string]$SourcePath,
+        [Parameter(Mandatory = $true)][string]$DestinationPath,
+        [Parameter(Mandatory = $true)][string]$RemoteUser,
+        [Parameter(Mandatory = $true)][string]$RemoteHost,
+        [Parameter(Mandatory = $true)][string[]]$SshArgs
+    )
+
+    $scpCmdInfo = Get-Command "scp.exe" -ErrorAction SilentlyContinue -All | Select-Object -First 1
+    if (-not $scpCmdInfo) { throw "scp not found. Install OpenSSH client." }
+
     # mimic rsync --delete by clearing destination before copying contents
-    Get-ChildItem -Force $dst -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
+    Get-ChildItem -Force $DestinationPath -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
 
     # copy contents of saved_data (not the directory itself) to keep structure consistent
-    $rsrc = $remoteUser + "@" + $remoteHost + ":`"$remoteSaved/*`""
-    Write-Host "-> scp -r $rsrc -> $dst (dst cleared before copy)"
-    $scpCmd = $scp.Source
-    & $scpCmd @($sshArgs) "-r" $rsrc $dst
+    $rsrc = $RemoteUser + "@" + $RemoteHost + ":`"$SourcePath/*`""
+    Write-Host "-> scp -r $rsrc -> $DestinationPath (dst cleared before copy)"
+    & $scpCmdInfo.Source @($SshArgs) "-r" $rsrc $DestinationPath
+
+    if ($LASTEXITCODE -ne 0) { throw "scp failed with exit code $LASTEXITCODE" }
 }
 
+if ($rsyncCmd) {
+    $rsrc = $remoteUser + "@" + $remoteHost + ":" + $remoteSaved + "/"
+    Write-Host "-> rsync $rsrc -> $dst"
+    $sshCmd = "ssh " + ((@($sshArgs) | ForEach-Object { if ($_ -match '\s') { '"' + $_ + '"' } else { $_ } }) -join ' ')
+    & $rsyncCmd.Source "-az" "--delete" "-e" $sshCmd $rsrc $dst
+
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warning "rsync failed with exit code $LASTEXITCODE; falling back to scp (slower). If this keeps happening, install rsync on the server or remove login banner output in shell rc files."
+        Invoke-ScpSync -SourcePath $remoteSaved -DestinationPath $dst -RemoteUser $remoteUser -RemoteHost $remoteHost -SshArgs $sshArgs
+    }
+} else {
+    Invoke-ScpSync -SourcePath $remoteSaved -DestinationPath $dst -RemoteUser $remoteUser -RemoteHost $remoteHost -SshArgs $sshArgs
+}
+ 
 Write-Host "Done."
