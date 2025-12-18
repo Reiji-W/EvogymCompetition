@@ -50,8 +50,12 @@ if ($rsync) {
 } else {
     $scp = Get-Command "scp.exe" -ErrorAction SilentlyContinue
     if (-not $scp) { throw "rsync or scp not found. Install OpenSSH client or rsync." }
-    $rsrc = $remoteUser + "@" + $remoteHost + ":" + $remoteSaved
-    Write-Host "-> scp -r $rsrc -> $dst (delete not mirrored)"
+    # mimic rsync --delete by clearing destination before copying contents
+    Get-ChildItem -Force $dst -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
+
+    # copy contents of saved_data (not the directory itself) to keep structure consistent
+    $rsrc = $remoteUser + "@" + $remoteHost + ":`"$remoteSaved/*`""
+    Write-Host "-> scp -r $rsrc -> $dst (dst cleared before copy)"
     $scpCmd = $scp.Source
     & $scpCmd @($sshArgs) "-r" $rsrc $dst
 }

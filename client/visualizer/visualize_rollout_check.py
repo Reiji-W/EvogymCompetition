@@ -7,9 +7,13 @@ import os
 import sys
 import argparse
 import math
+import traceback
 import numpy as np
 import gymnasium as gym
 from typing import Optional
+import faulthandler
+
+faulthandler.enable()
 
 # === project root を sys.path に通す（学習側と同じ） ===
 import importlib
@@ -142,10 +146,24 @@ def rollout_direct(
     controller_params: Optional[tuple] = None,
 ):
     # まずはカスタム環境想定（body/conn 必須）で作成。ダメならベース環境として作成。
+    env = None
+    print("[DEBUG] gym.make(render_mode='human') start", flush=True)
     try:
         env = gym.make(env_name, body=body, connections=connections, render_mode="human")
-    except TypeError:
-        env = gym.make(env_name, render_mode=None)
+        print("[DEBUG] gym.make(render_mode='human') succeeded", flush=True)
+    except TypeError as e:
+        print(f"[DEBUG] gym.make(render_mode='human') raised TypeError -> retry render_mode=None ({e})", flush=True)
+        try:
+            env = gym.make(env_name, render_mode=None)
+            print("[DEBUG] gym.make(render_mode=None) succeeded", flush=True)
+        except Exception:
+            print("[ERROR] gym.make(render_mode=None) failed", flush=True)
+            traceback.print_exc()
+            return
+    except Exception:
+        print("[ERROR] gym.make(render_mode='human') failed", flush=True)
+        traceback.print_exc()
+        return
 
     try:
         env._max_episode_steps = max(getattr(env, "_max_episode_steps", 0) or 0, n_iters)
@@ -163,7 +181,15 @@ def rollout_direct(
         print(f"[DEBUG] controller_params f={f:.6f}, a={a:.6f}, p={p:.6f}")
     else:
         print("[DEBUG] controller_params: None (default periodic_controller)")
-    obs, _ = env.reset()
+    print("[DEBUG] env.reset() start", flush=True)
+    try:
+        obs, _ = env.reset()
+        print("[DEBUG] env.reset() succeeded", flush=True)
+    except Exception:
+        print("[ERROR] env.reset() failed", flush=True)
+        traceback.print_exc()
+        env.close()
+        return
     total_reward = 0.0
     for step in range(n_iters):
         action = periodic_controller(step, env.action_space.shape[0], controller_params)
