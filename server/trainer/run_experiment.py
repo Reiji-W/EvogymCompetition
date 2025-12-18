@@ -143,7 +143,7 @@ def run_experiment(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="GA for EvoGym")
     parser.add_argument("--exp_name", type=str, default="default_experiment")
-    parser.add_argument("--env_name", type=str, default="")
+    parser.add_argument("--env_name", type=str, default="Walker-v0")
     parser.add_argument("--pop_size", type=int, default=120)
     parser.add_argument("--structure_shape", type=int, nargs=2, default=[5, 5])
     parser.add_argument("--max_evaluations", type=int, default=1200)
@@ -156,7 +156,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--custom_env",
         action=argparse.BooleanOptionalAction,
-        default=True,
+        default=False,
         help="カスタム環境を使う（デフォルト True）。ベース環境に戻す場合は --no-custom_env。",
     )
     args = parser.parse_args()
