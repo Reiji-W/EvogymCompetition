@@ -52,8 +52,15 @@ def _resolve_active_json() -> str:
     return os.path.abspath(jsons[0])
 
 
-_ACTIVE_JSON = _resolve_active_json()
-logger.debug(f"[EvoGym] Using active JSON: {_ACTIVE_JSON}")
+_ACTIVE_JSON: Optional[str] = None
+
+def _get_default_world_json() -> str:
+    global _ACTIVE_JSON
+    if _ACTIVE_JSON and os.path.isfile(_ACTIVE_JSON):
+        return _ACTIVE_JSON
+    _ACTIVE_JSON = _resolve_active_json()
+    logger.debug(f"[EvoGym] Using active JSON: {_ACTIVE_JSON}")
+    return _ACTIVE_JSON
 
 # -- 環境本体（落下死亡判定などのロジック） --------------------------------------
 class _ActiveJsonWalkerEnv(EvoGymBase):
@@ -68,6 +75,7 @@ class _ActiveJsonWalkerEnv(EvoGymBase):
         body: np.ndarray,
         connections: Optional[np.ndarray] = None,
         render_mode: Optional[str] = None,
+        world_json: Optional[str] = None,
         *,
         # 初期位置
         spawn_x: int = 1,
@@ -85,7 +93,17 @@ class _ActiveJsonWalkerEnv(EvoGymBase):
         self._fall_penalty = float(fall_penalty)
         self._below_counter = 0
 
-        world = EvoWorld.from_json(_ACTIVE_JSON)
+        world_path = os.path.abspath(world_json) if world_json else _get_default_world_json()
+        if not os.path.isfile(world_path):
+            msg = (
+                "[EvoGym] world_json が見つかりません。\n"
+                f"  world_json: {world_path}\n"
+                "  env_id ごとの JSON を使う場合は register() の kwargs で world_json を渡してください。"
+            )
+            print(msg, file=sys.stderr)
+            raise RuntimeError(msg)
+
+        world = EvoWorld.from_json(world_path)
         world.add_from_array("robot", body, x=spawn_x, y=spawn_y, connections=connections)
         super().__init__(world, render_mode=render_mode)
 
