@@ -1,40 +1,33 @@
 # otani-lab-competition
 
-このリポジトリは、大谷研究室内で行う進化的ロボティクスコンペティションのためのコード基盤です。
-サーバで進化計算（GA）を実行し、生成されたロボットを学生がローカルで可視化・分析する運用を想定しています。
+大谷研コンペ向けの EvoGym ベース環境です。サーバ側で GA を回して `server/saved_data/` に保存し、クライアント側で同期して可視化します。
 
-## ディレクトリ構成
+## ワークフロー
 
-```
-server/                 # サーバサイド（進化計算実行環境）
-  ├── scripts/          # 実行・ログ取得用スクリプト
-  ├── trainer/          # アルゴリズム実装
-  ├── custom_env/       # 環境定義
-  └── saved_data/       # 結果保存
+1. （Client）`env_builder` で World JSON を作る
+2. （Client→Server）World JSON をサーバへ送って **active** に反映
+3. （Server）`run_experiment.py` で進化計算（GA）を実行し `server/saved_data/<exp_name>/` に保存
+4. （Client）`mount_saved_data` で `server/saved_data/` を `client/mnt/` に同期
+5. （Client）`visualize_bodies.py` / `visualize_rollout.py` で可視化
 
-client/                 # クライアントサイド（可視化・環境作成）
-  ├── config/           # 接続先設定(remote.yamlなど)
-  ├── scripts/          # 転送・マウント系スクリプト
-  ├── visualizer/       # 可視化コード
-  ├── env_builder/      # 環境作成用ツール
-  └── mnt/              # サーバのsaved_dataをマウント
+## 仮想環境は分ける（衝突回避）
 
-.github/workflows/      # CI/CDワークフロー
-```
+用途ごとに `venv` を分離してください（numpy / pillow / OpenGL 周りが衝突しやすい）。
 
-## 利用方法
+- サーバ（学習/GA）：`server/.venv`（`server/requirements_server.txt`）
+- env_builder（設計ツール）：`client/env_builder/.venv`（`client/env_builder/requirements_env_builder.txt`）
+- visualizer（可視化）：`client/visualizer/.venv`（`client/requirements_client.txt`）
 
-### 1. サーバサイド
-- `server/scripts/run_ga.sh` を用いて進化計算を実行します。
-- `server/saved_data/` に成果物（ログ・解ファイルなど）が保存されます。
+## ドキュメント
 
-### 2. クライアントサイド
-- `client/config/remote.yaml` にサーバのアドレスやパスを設定します。
-- `client/scripts/mount_saved_data.sh` を使ってサーバの結果をマウントします。
-- `client/visualizer/` のスクリプトを用いて結果を可視化します。
+- Server（学習/パラメータ/改造ポイント）：`server/README.md`
+- Env Builder（設計ツール）：`client/env_builder/README.md`
+- Visualizer（可視化）：`client/visualizer/README.md`
 
-### 3. 環境作成
-- `client/env_builder/` に環境定義JSONを配置し、`client/scripts/send_world_json.sh` でサーバに転送します。
+## 改造ポイント（サーバ側の設計）
 
-## ライセンス
-このリポジトリは教育目的で使用されます。
+サーバ側はここをいじる前提です。
+
+- `server/trainer/run_experiment.py`：GA の流れ（評価→選択→生成→保存）と引数
+- `server/trainer/ga/operators/`：突然変異・交叉・選択
+- `server/trainer/ga/registry.py`：`--mutation` / `--crossover` / `--selection` の名前解決
